@@ -16,15 +16,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
-import { 
-  useCampAuth, 
-  useAppKit, 
-  useSocials, 
-  useOrigin,
-  CampButton,
-  CampModal,
-  AppKitButton
-} from '../sdk/react-native';
+import { CampButton, CampModal } from '@/components/OriginSDKWrapper';
+// The following hooks/components may be provided by the native AppKit integration or shims
+const useCampAuth = require('@/hooks/useCampAuth').useCampAuth || (() => ({}));
+const useAppKit = require('@reown/appkit-wagmi-react-native').useAppKit || (() => ({}));
+const useSocials = require('@/hooks/useSocials').useSocials || (() => ({}));
+const useOrigin = require('@/hooks/useOrigin').useOrigin || (() => ({}));
+
 
 const { width } = Dimensions.get('window');
 
@@ -155,7 +153,7 @@ export default function CampAppKitDemo() {
           <Text style={styles.statusLabel}>Status:</Text>
           <Text style={[
             styles.statusValue, 
-            { color: isAuthenticated ? Colors.brand.green : Colors.brand.red }
+                    { color: isAuthenticated ? Colors.camp.green[500] : Colors.camp.red[500] }
           ]}>
             {isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated'}
           </Text>
@@ -172,11 +170,9 @@ export default function CampAppKitDemo() {
 
         <CampButton 
           onPress={isAuthenticated ? campDisconnect : campConnect}
-          loading={isLoading}
+          title={isAuthenticated ? 'Disconnect from Camp' : 'Connect to Camp'}
           style={styles.actionButton}
-        >
-          {isAuthenticated ? 'Disconnect from Camp' : 'Connect to Camp'}
-        </CampButton>
+        />
       </View>
 
       {/* Wallet Connection Status */}
@@ -186,7 +182,7 @@ export default function CampAppKitDemo() {
           <Text style={styles.statusLabel}>Wallet:</Text>
           <Text style={[
             styles.statusValue,
-            { color: isAppKitConnected ? Colors.brand.green : Colors.brand.red }
+            { color: isAppKitConnected ? Colors.camp.green[500] : Colors.camp.red[500] }
           ]}>
             {isAppKitConnected ? '✅ Connected' : '❌ Not connected'}
           </Text>
@@ -202,16 +198,15 @@ export default function CampAppKitDemo() {
         )}
 
         {/* Pre-built AppKit Button */}
-        <AppKitButton style={styles.actionButton} />
+  {/* AppKitButton not available in this shim build; render AppKit UI via AppKit component instead */}
         
         {/* Custom AppKit Controls */}
         <View style={styles.buttonRow}>
           <CampButton 
             onPress={isAppKitConnected ? disconnectAppKit : openAppKit}
-            style={[styles.actionButton, { backgroundColor: Colors.brand.blue, flex: 1 }]}
-          >
-            {isAppKitConnected ? 'Disconnect' : 'Connect Wallet'}
-          </CampButton>
+            title={isAppKitConnected ? 'Disconnect' : 'Connect Wallet'}
+            style={[styles.actionButton, { backgroundColor: Colors.camp.blue[500], flex: 1 }]}
+          />
         </View>
       </View>
 
@@ -278,7 +273,7 @@ export default function CampAppKitDemo() {
                 </Text>
                 <Text style={[
                   styles.socialStatus,
-                  { color: isLinked ? Colors.brand.green : Colors.brand.gray }
+                  { color: isLinked ? Colors.camp.green[500] : Colors.camp.gray[500] }
                 ]}>
                   {isLinked ? 'Linked' : 'Not linked'}
                 </Text>
@@ -289,13 +284,12 @@ export default function CampAppKitDemo() {
                   platform as 'twitter' | 'discord' | 'spotify',
                   isLinked ? 'unlink' : 'link'
                 )}
+                title={isLinked ? 'Unlink' : 'Link'}
                 style={[
                   styles.socialButton,
-                  { backgroundColor: isLinked ? Colors.brand.red : Colors.brand.campOrange }
+                  { backgroundColor: isLinked ? Colors.camp.red[500] : Colors.brand.campOrange }
                 ]}
-              >
-                {isLinked ? 'Unlink' : 'Link'}
-              </CampButton>
+              />
             </View>
           ))}
         </View>
@@ -344,9 +338,7 @@ export default function CampAppKitDemo() {
       {error && (
         <View style={styles.errorSection}>
           <Text style={styles.errorText}>❌ Error: {error}</Text>
-          <CampButton onPress={clearError} style={styles.clearErrorButton}>
-            Clear Error
-          </CampButton>
+          <CampButton onPress={clearError} title="Clear Error" style={styles.clearErrorButton} />
         </View>
       )}
 
@@ -531,19 +523,19 @@ const styles = StyleSheet.create({
   },
   errorSection: {
     margin: 20,
-    backgroundColor: Colors.brand.red + '10',
+  backgroundColor: Colors.camp.red[50],
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.brand.red + '30',
+  borderColor: Colors.camp.red[100],
   },
   errorText: {
-    color: Colors.brand.red,
+  color: Colors.camp.red[500],
     fontSize: 14,
     marginBottom: 12,
   },
   clearErrorButton: {
-    backgroundColor: Colors.brand.red,
+  backgroundColor: Colors.camp.red[500],
     paddingHorizontal: 16,
     paddingVertical: 8,
   },

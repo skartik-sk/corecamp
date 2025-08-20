@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Auth } from '@campnetwork/origin';
+// Avoid importing the heavy Origin SDK in mobile app; treat auth as any to use shim
 import { Colors } from '@/constants/Colors';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -61,8 +61,8 @@ if (typeof global.document !== 'undefined') {
 // Create our own Camp Context for React Native
 interface CampContextType {
   clientId: string;
-  auth: Auth | null;
-  setAuth: (auth: Auth | null) => void;
+  auth: any | null;
+  setAuth: (auth: any | null) => void;
   wagmiAvailable: boolean;
 }
 
@@ -87,23 +87,7 @@ export const CampProvider: React.FC<CampProviderProps> = ({
   children,
   allowAnalytics = false,
 }) => {
-  const [auth, setAuth] = useState<Auth | null>(null);
-
-  useEffect(() => {
-    console.log('🏕️ Initializing Camp Network Auth...');
-    try {
-      const authInstance = new Auth({
-        clientId,
-        redirectUri: redirectUri || 'exp://localhost:19000',
-        allowAnalytics,
-      });
-      
-      setAuth(authInstance);
-      console.log('✅ Camp Network Auth initialized successfully');
-    } catch (error) {
-      console.error('❌ Failed to initialize Camp Network Auth:', error);
-    }
-  }, [clientId, redirectUri, allowAnalytics]);
+  const [auth, setAuth] = useState<any | null>(null);
 
   return (
     <CampContext.Provider 

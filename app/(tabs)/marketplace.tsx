@@ -102,11 +102,12 @@ export default function MarketplaceScreen() {
     
     try {
       // Implementation for buying access to IP
-      const tokenId = BigInt(item.id);
-      const priceWei = parseFloat(item.price) * 1e18; // Convert to Wei
-      
-      // Assuming the campNetwork has a method that takes address, tokenId, and price
-      await campNetwork.buyAccess(address, tokenId.toString(), priceWei.toString());
+  const tokenId = BigInt(item.id);
+  const pricePerPeriod = BigInt(Math.floor(parseFloat(item.price) * 1e18)); // Wei as bigint
+  const periods = 1; // default 1 period
+
+  // Call campNetwork.buyAccess(buyer, tokenId, periods, pricePerPeriod)
+  await campNetwork.buyAccess(tokenId, periods, pricePerPeriod);
       // Show success message
       alert(`Successfully purchased access to "${item.title}"!`);
     } catch (error) {

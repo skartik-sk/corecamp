@@ -66,15 +66,15 @@ export default function ConnectWalletScreen({ onBack }: ConnectWalletScreenProps
             <View style={styles.originStatusCard}>
               <View style={styles.originStatusHeader}>
                 <Ionicons 
-                  name={originSDK.isConnected ? "checkmark-circle" : originSDK.isLoading ? "time" : "alert-circle"} 
+                  name={originSDK.isAuthenticated ? "checkmark-circle" : originSDK.isLoading ? "time" : "alert-circle"} 
                   size={24} 
-                  color={originSDK.isConnected ? "#10B981" : originSDK.isLoading ? "#F59E0B" : "#EF4444"} 
+                  color={originSDK.isAuthenticated ? "#10B981" : originSDK.isLoading ? "#F59E0B" : "#EF4444"} 
                 />
                 <Text style={styles.originStatusTitle}>Origin SDK</Text>
               </View>
               
               <Text style={styles.originStatusText}>
-                {originSDK.isConnected 
+                {originSDK.isAuthenticated 
                   ? "✅ Connected - Ready for IP creation"
                   : originSDK.isLoading 
                   ? "🔄 Connecting to Origin services..."
@@ -84,7 +84,7 @@ export default function ConnectWalletScreen({ onBack }: ConnectWalletScreenProps
                 }
               </Text>
               
-              {originSDK.isConnected && (
+              {originSDK.isAuthenticated && (
                 <View style={styles.originFeatures}>
                   <Text style={styles.originFeaturesTitle}>Now you can:</Text>
                   <Text style={styles.originFeature}>🎨 Create IP NFTs</Text>
@@ -94,10 +94,10 @@ export default function ConnectWalletScreen({ onBack }: ConnectWalletScreenProps
                 </View>
               )}
               
-              {!originSDK.isConnected && !originSDK.isLoading && (
+              {!originSDK.isAuthenticated && !originSDK.isLoading && (
                 <TouchableOpacity 
                   style={styles.connectOriginButton}
-                  onPress={() => originSDK.connect()}
+                  onPress={() => originSDK.authenticate()}
                 >
                   <Text style={styles.connectOriginText}>Connect Origin SDK</Text>
                 </TouchableOpacity>
@@ -208,23 +208,7 @@ export default function ConnectWalletScreen({ onBack }: ConnectWalletScreenProps
           </View>
 
           {/* Steps Preview */}
-          <View style={styles.stepsContainer}>
-            <Text style={styles.stepsTitle}>What happens next?</Text>
-            <View style={styles.stepsList}>
-              <View style={styles.stepItem}>
-                <Text style={styles.stepNumber}>1</Text>
-                <Text style={styles.stepText}>Connect your wallet</Text>
-              </View>
-              <View style={styles.stepItem}>
-                <Text style={styles.stepNumber}>2</Text>
-                <Text style={styles.stepText}>Initialize Origin SDK</Text>
-              </View>
-              <View style={styles.stepItem}>
-                <Text style={styles.stepNumber}>3</Text>
-                <Text style={styles.stepText}>Start creating IP NFTs</Text>
-              </View>
-            </View>
-          </View>
+          
         </View>
       </LinearGradient>
     </SafeAreaView>

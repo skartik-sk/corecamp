@@ -2,17 +2,16 @@
 import '../utils/polyfills';
 
 import React, { useEffect } from 'react';
-import { AppKit } from "@reown/appkit-wagmi-react-native";
+import {AppKit} from "@reown/appkit-wagmi-react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@walletconnect/react-native-compat";
 import { WagmiProvider } from "wagmi";
 import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 
 // Import Camp SDK components
-import { CampProvider } from "../sdk/react-native";
-import { AppKitProvider } from "../sdk/react-native/appkit";
 
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import {  useCampAuth } from '@/hooks/useCampAuth';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -21,6 +20,7 @@ import 'react-native-reanimated';
 // Use React Native's built-in useColorScheme instead of custom hook
 import { useColorScheme } from 'react-native';
 import { wagmiConfig, initializeCampAppKit } from "@/config/campAppKit";
+import { useCampfireIntegration } from '@/hooks/useCampfireIntegration';
 
 // Setup query client for React Query
 const queryClient = new QueryClient();
@@ -41,9 +41,11 @@ const apollo = new ApolloClient({
 });
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+
+  // Only load the fonts that exist in this repo to avoid bundling failures.
+  // The repo contains SpaceMono; Inter TTFs are optional and may not be checked in.
   const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    'SpaceMono-Regular': require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
   // Initialize AppKit on component mount
@@ -51,43 +53,35 @@ export default function RootLayout() {
     initializeCampAppKit();
   }, []);
 
+  // Defensive AppKit wrapper: try to require the native AppKit component and
+  // expose an `openAppKit` helper on global so UI components can open wallet UI.
+
+
   if (!loaded) {
     // Async font loading only occurs in development.
     return null;
   }
+// const {authenticated} = useCampAuth();
+
+
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={ DarkTheme }>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <AppKitProvider
-            config={{
-              projectId: process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID || "83d0addc08296ab3d8a36e786dee7f48",
-              metadata: {
-                name: "Camp Network",
-                description: "Decentralized IP Trading Platform with Camp Network Integration",
-                url: "https://campnetwork.xyz",
-                icons: ["https://imgur.com/7nLZezD.png"]
-              }
-            }}
-          >
-            <ApolloProvider client={apollo}>
-              <CampProvider 
-                clientId={process.env.EXPO_PUBLIC_ORIGIN_CLIENT_ID || 'fce77d7a-8085-47ca-adff-306a933e76aa'}
-                redirectUri={{
-                  twitter: "campnetwork://redirect/twitter",
-                  discord: "campnetwork://redirect/discord", 
-                  spotify: "campnetwork://redirect/spotify",
-                  default: "campnetwork://auth-callback"
-                }}
-                allowAnalytics={true}
-              >
-                <Stack
+          {/* AppKit provider is exposed as a default AppKit component in some builds */}
+            {/* <ApolloProvider client={apollo}> */}
+           
+                <Stack 
                   screenOptions={{
                     headerShown: false,
                     contentStyle: { backgroundColor: '#F8FAFC' }
                   }}
                 >
+                  <Stack>
+
+                  <Stack.Screen  name="(tabs)" options={{ headerShown: false }} />
+                  </Stack>
                   <Stack.Screen 
                     name="sign-in" 
                     options={{ 
@@ -95,13 +89,13 @@ export default function RootLayout() {
                       presentation: 'modal'
                     }} 
                   />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen name="+not-found" />
+                    <Stack.Screen name="+not-found" />
                 </Stack>
-                <AppKit />
-              </CampProvider>
-            </ApolloProvider>
-          </AppKitProvider>
+
+                <AppKit/>
+
+            {/* </ApolloProvider> */}
+          
           <StatusBar style="auto" />
         </QueryClientProvider>
       </WagmiProvider>

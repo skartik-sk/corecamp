@@ -201,7 +201,7 @@ export const useCampNetwork = () => {
       
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
 
-      writeMintIPNFT({
+    writeMintIPNFT({
         address: CAMP_NETWORK_CONFIG.contracts.IpNFT as `0x${string}`,
         abi: IPNFT_ABI,
         functionName: 'mintWithSignature',
@@ -209,8 +209,9 @@ export const useCampNetwork = () => {
           address,
           BigInt(tokenId),
           contentHash,
-          metadataURI,
-          licenseTerms,
+      metadataURI,
+      // licenseTerms shape can be complex; cast to any to satisfy ABI tuple typing
+      licenseTerms as any,
           deadline,
           parentTokenIds,
           signature

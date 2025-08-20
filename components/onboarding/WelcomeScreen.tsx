@@ -32,9 +32,7 @@ export default function WelcomeScreen({ onNext }: WelcomeScreenProps) {
 
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          <View style={styles.heroCircle}>
-            <Text style={styles.heroEmoji}>🚀</Text>
-          </View>
+          
           <Text style={styles.heroTitle}>Welcome to the Future of IP Trading</Text>
           <Text style={styles.heroDescription}>
             Transform your intellectual property into valuable digital assets and join the thriving creator economy.

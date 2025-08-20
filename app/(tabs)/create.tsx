@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
-import { useCampNetworkSDK } from '@/hooks/useCampNetworkSDK';
 
 const { width } = Dimensions.get('window');
 
@@ -39,8 +38,10 @@ const IP_CATEGORIES = [
 ];
 
 export default function CreateIPScreen() {
-  const campSDK = useCampNetworkSDK();
+
   const [isCreating, setIsCreating] = useState(false);
+  // campSDK shim that provides authenticate/openAppKit/createIPAsset surface
+  const campSDK = require('@/hooks/useCampNetworkSDK').useCampNetworkSDK?.() || require('@/hooks/useCampNetworkSDK').default?.();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [formData, setFormData] = useState<IPFormData>({
     title: '',

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Address } from 'viem';
 
 interface CampAuthState {
   authenticated: boolean;
@@ -13,7 +14,7 @@ interface CampAuthState {
 }
 
 interface CampAuthActions {
-  connect: () => Promise<void>;
+  connect: (address: Address) => Promise<void>;
   disconnect: () => Promise<void>;
 }
 
@@ -31,27 +32,15 @@ export const useCampAuth = (): CampAuthState & CampAuthActions => {
     setState(prev => ({ ...prev, loading: false }));
   }, []);
 
-  const connect = async () => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    
-    try {
-      // Simulate a successful connection for development
-      // Replace this with actual Camp Network integration when ready
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+  const connect = async (address: Address) => {
+
       setState(prev => ({
         ...prev,
         authenticated: true,
         loading: false,
-        address: '0x1234567890123456789012345678901234567890', // Mock address
+        address: address, // Mock address
       }));
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : 'Connection failed',
-      }));
-    }
+   
   };
 
   const disconnect = async () => {

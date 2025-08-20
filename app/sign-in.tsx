@@ -4,15 +4,19 @@ import { router } from 'expo-router';
 import WelcomeScreen from '@/components/onboarding/WelcomeScreen';
 import FeaturesScreen from '@/components/onboarding/FeaturesScreen';
 import ConnectWalletScreen from '@/components/onboarding/ConnectWalletScreen';
+import { useCampAuth } from '@/hooks/useCampAuth';
 
 export default function SignInScreen() {
-  const { isConnected } = useAccount();
+  const { isConnected,address } = useAccount();
+const {connect }= useCampAuth()
   const [currentStep, setCurrentStep] = useState(0);
 
   // Redirect if already connected
   React.useEffect(() => {
     if (isConnected) {
       console.log("first")
+      // connect(address|| '0x')
+
       router.replace('/(tabs)');
     }
   }, [isConnected]);

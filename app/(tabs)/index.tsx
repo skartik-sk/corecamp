@@ -16,18 +16,52 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
+import Header from '@/components/ui/Header';
+import Hero from '@/components/ui/Hero';
+import { useAccount } from 'wagmi';
+import { useWalletInfo } from '@reown/appkit-wagmi-react-native';
+import { useCampfireIntegration } from '@/hooks/useCampfireIntegration';
+
+                import { Image } from 'react-native';
+                import { ResizeMode, Video } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 
 interface IPAsset {
   id: string;
-  title: string;
-  type: 'document' | 'image' | 'product' | 'design';
+  title?: string;
+
+  createdAt?: string;
+  // Common media URLs (nullable as some records use different fields)
+  url?: string;
+  animation_url?: string | null;
+  external_app_url?: string | null;
+  image_url?: string | null;
+  media_url?: string | null;
+  // Other flags
+  is_unique?: boolean | null;
+  media_type?: string | null;
+  // Derived / UI fields
+  type?: 'video' | 'music' | 'image' | 'document' | 'design' | string;
   thumbnail?: string;
-  price: string;
-  status: 'owned' | 'listed' | 'auction' | 'negotiating';
-  views: number;
-  offers: number;
+
+  status?: 'owned' | 'listed' | 'auction' | 'negotiating' | string;
+  views?: number;
+  offers?: number;
+  // Full metadata payload coming from the origin service
+
+    category?: string;
+    description?: string;
+    image?: string;
+    isDerivative?: boolean;
+    mimeType?: string;
+    owner?: string;
+    parentId?: string;
+    price?: string | number;
+    size?: number;
+    tags?: string[];
+
+
 }
 
 interface Activity {
@@ -39,6 +73,9 @@ interface Activity {
 }
 
 export default function HomeScreen() {
+  const { address } = useAccount();
+
+  const { getOriginData } = useCampfireIntegration();
   const campSDK = useCampNetworkSDK();
   const colorScheme = useColorScheme();
   const router = useRouter();
@@ -83,27 +120,45 @@ export default function HomeScreen() {
 
   // Fetch usage data when authenticated with Camp Network
   useEffect(() => {
-    if (campSDK.isAuthenticated) {
+    const fetchUsageData = async () => {
       console.log('🔍 Fetching Camp usage data...');
-      campSDK.getUsage().then(setUsageData).catch(console.error);
+        const res = await getOriginData(address || '');
+        console.log(res)
+        if(res.length>0){
+          const assets = res.map((asset: any) => {
+            const url = asset.animation_url ??  asset.metadata.image;
+            const type = asset.animation_url ? 'video' :  'image';
+
+            const ownerRaw = asset.metadata?.owner ?? asset.owner ?? '';
+            const owner =
+              ownerRaw && ownerRaw.length > 6
+              ? `${ownerRaw.slice(0, 3)}...${ownerRaw.slice(-3)}`
+              : ownerRaw || undefined;
+
+            return {
+              id: asset.id,
+              title: asset.metadata?.name ?? `Asset ${asset.id}`,
+              url,
+              type,
+              thumbnail: asset.metadata?.image ?? asset.image_url,
+              price: `${asset.metadata?.price ?? 0} CAMP`,
+              owner,
+              status: asset.owner != address ? owner : 'owned',
+            };
+          });
+      setUserAssets(assets);
+    } else {
+      setUserAssets([]);
     }
-  }, [campSDK.isAuthenticated]);
+  };
+    fetchUsageData();
+  }, [address]);
 
   // Update user assets when IP assets are loaded
   useEffect(() => {
     if (campSDK.ipAssets.length > 0) {
       console.log('📦 Loading IP assets from Camp SDK:', campSDK.ipAssets);
-      const assets = campSDK.ipAssets.map((asset: any) => ({
-        id: asset.id,
-        title: asset.title,
-        type: asset.type as 'document' | 'image' | 'product' | 'design',
-        thumbnail: asset.metadata?.image,
-        price: asset.price,
-        status: asset.status as 'owned' | 'listed' | 'auction' | 'negotiating',
-        views: Math.floor(Math.random() * 50),
-        offers: Math.floor(Math.random() * 10),
-      }));
-      setUserAssets(assets);
+     
     } else if (campSDK.isAuthenticated) {
       setUserAssets([]);
     }
@@ -191,8 +246,8 @@ export default function HomeScreen() {
         return 'Owned';
     }
   };
-
-  if (showOnboarding) {
+  const { walletInfo } = useWalletInfo();
+  if (showOnboarding && !address) {
     return <OnboardingFlow onComplete={handleOnboardingComplete} />;
   }
 
@@ -204,27 +259,17 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <ThemedText type="title">Your IP Portfolio</ThemedText>
-            <ThemedText style={styles.addressText}>
-              {campSDK.user?.address ? `${campSDK.user.address.slice(0, 6)}...${campSDK.user.address.slice(-4)}` : 'Not Connected'}
-            </ThemedText>
-          </View>
-          <TouchableOpacity style={styles.profileButton}>
-            <IconSymbol size={24} name="person.circle" color={Colors[colorScheme ?? 'light'].text} />
-          </TouchableOpacity>
-        </View>
+  <Header />
+  <Hero subtitle={address ? 'Welcome back — manage your IP and earnings.' : undefined} />
 
         {/* Quick Actions */}
-        <View style={styles.quickActions}>
+        <View style={[styles.quickActions, { justifyContent: 'space-between' }]}>
           <TouchableOpacity 
-            style={styles.quickAction}
-            onPress={() => router.push('/create')}
+            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
+            onPress={()  => router.push('/create')}
           >
             <LinearGradient
-              colors={[Colors.camp.green[500], Colors.camp.green[600]]}
+              colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
               style={styles.quickActionGradient}
             >
               <IconSymbol size={28} name="plus.circle.fill" color="white" />
@@ -233,11 +278,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.quickAction}
+            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
             onPress={() => router.push('/chat')}
           >
             <LinearGradient
-              colors={[Colors.camp.blue[500], Colors.camp.blue[600]]}
+              colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
               style={styles.quickActionGradient}
             >
               <IconSymbol size={28} name="message.fill" color="white" />
@@ -246,11 +291,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.quickAction}
+            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
             onPress={() => router.push('/marketplace')}
           >
             <LinearGradient
-              colors={[Colors.camp.purple[500], Colors.camp.purple[600]]}
+                colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
               style={styles.quickActionGradient}
             >
               <IconSymbol size={28} name="storefront.fill" color="white" />
@@ -259,11 +304,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.quickAction}
+            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
             onPress={() => router.push('/auctions')}
           >
             <LinearGradient
-              colors={[Colors.camp.orange[500], Colors.camp.orange[600]]}
+               colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
               style={styles.quickActionGradient}
             >
               <IconSymbol size={28} name="hammer.fill" color="white" />
@@ -273,56 +318,86 @@ export default function HomeScreen() {
         </View>
 
         {/* Your IP Assets */}
-        <View style={styles.section}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>Your IP Assets</ThemedText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.assetsScroll}>
-            {userAssets.map((asset) => (
-              <TouchableOpacity key={asset.id} style={styles.assetCard}>
-                <View style={styles.assetThumbnail}>
-                  <IconSymbol 
-                    size={40} 
-                    name={
-                      asset.type === 'document' ? 'doc.fill' :
-                      asset.type === 'image' ? 'photo.fill' :
-                      asset.type === 'design' ? 'paintbrush.fill' :
-                      'cube.fill'
-                    } 
-                    color={Colors[colorScheme ?? 'light'].text} 
-                  />
-                </View>
-                <ThemedText style={styles.assetTitle} numberOfLines={2}>
-                  {asset.title}
-                </ThemedText>
-                <ThemedText style={styles.assetPrice}>{asset.price}</ThemedText>
-                <View style={styles.assetStatus}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(asset.status) }]} />
-                  <ThemedText style={styles.statusText}>{getStatusText(asset.status)}</ThemedText>
-                </View>
-                <View style={styles.assetStats}>
-                  <View style={styles.assetStat}>
-                    <IconSymbol size={14} name="eye.fill" color={Colors[colorScheme ?? 'light'].text} />
-                    <ThemedText style={styles.assetStatText}>{asset.views}</ThemedText>
+        {userAssets.length > 0 ? 
+          <View style={styles.section}>
+            <ThemedText type="subtitle" style={styles.sectionTitle}>Your IP Assets</ThemedText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.assetsScroll}>
+              {userAssets.map((asset) => (
+                <TouchableOpacity key={asset.id} style={styles.assetCard} activeOpacity={0.9}>
+                  <View style={styles.cardMediaWrap}>
+                    {asset.type === 'video' ? (
+                      <Video
+                        source={{ uri: asset.url || '' }}
+                        style={styles.assetThumbnail}
+                        useNativeControls
+                        shouldPlay
+                        isMuted
+                        resizeMode={ResizeMode.COVER}
+                        isLooping
+                      />
+                    ) : asset.type === 'music' ? (
+                      <View style={[styles.assetThumbnail, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
+                        <IconSymbol size={28} name="music.note" color={Colors[colorScheme ?? 'light'].text} />
+                        <ThemedText style={{ marginLeft: 8, fontSize: 12, opacity: 0.9 }}>Playing (muted)</ThemedText>
+                      </View>
+                    ) : asset.url ? (
+                      <Image source={{ uri: asset.url }} style={styles.assetThumbnail} resizeMode={ResizeMode.COVER} />
+                    ) : (
+                      <View style={styles.assetThumbnail} />
+                    )}
+
+                    {/* gradient overlay to mimic web design */}
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.35)"]}
+                      style={styles.cardOverlay}
+                    />
+
+                    {/* featured badge */}
+                    {asset.is_unique && (
+                      <View style={styles.featuredBadge}>
+                        <IconSymbol size={14} name="star.fill" color="white" />
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.assetStat}>
-                    <IconSymbol size={14} name="hand.raised.fill" color={Colors[colorScheme ?? 'light'].text} />
-                    <ThemedText style={styles.assetStatText}>{asset.offers}</ThemedText>
+
+                  <View style={styles.cardBody}>
+                    <ThemedText style={styles.assetTitle} numberOfLines={2}>
+                      {asset.title}
+                    </ThemedText>
+                    <ThemedText style={styles.assetMeta} numberOfLines={1}>
+                      {asset.owner ? `by ${asset.owner}` : asset.status}
+                    </ThemedText>
+
+                      <ThemedText style={styles.assetPrice}>{asset.price}</ThemedText>
+                    <View style={[styles.cardFooter, { width: '100%', alignItems: 'center' }]}>
+                      <LinearGradient
+                      colors={[Colors.brand['warm-1'], Colors.brand['warm-2']]}
+                      style={[styles.ctaButton, { flex: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }]}
+                      >
+                      <ThemedText style={styles.ctaText}>View</ThemedText>
+                      </LinearGradient>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-            
-            <TouchableOpacity 
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        : (
+          <ThemedText style={styles.emptyStateText}>No IP Assets Found</ThemedText>
+        )}
+
+            {/* <TouchableOpacity
               style={styles.addAssetCard}
               onPress={() => router.push('/create')}
             >
               <IconSymbol size={32} name="plus.circle.fill" color={Colors.camp.orange[500]} />
               <ThemedText style={styles.addAssetText}>Create New IP</ThemedText>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
+            </TouchableOpacity> */}
+
+        
 
         {/* Recent Activity */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>Recent Activity</ThemedText>
           <View style={styles.activityList}>
             {recentActivity.map((activity) => (
@@ -356,7 +431,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </View> */}
       </ScrollView>
     </ThemedView>
   );
@@ -425,6 +500,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   assetsScroll: {
+    
     marginHorizontal: -20,
     paddingHorizontal: 20,
   },
@@ -432,7 +508,7 @@ const styles = StyleSheet.create({
     width: 160,
     backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: 12,
-    padding: 12,
+    
     marginRight: 12,
   },
   assetThumbnail: {
@@ -537,4 +613,70 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.camp.green[500],
   },
+
+  emptyStateText: {
+    fontSize: 14,
+    color: Colors.brand['cool-1'],
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  // Card updates to match web IPCard
+  cardMediaWrap: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+  },
+  cardOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 48,
+  },
+  featuredBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.brand['warm-1'],
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardBody: {
+    padding: 12,
+
+  },
+  assetMeta: {
+    fontSize: 12,
+    color: Colors.brand['cool-1'],
+    marginBottom: 8,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ctaButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaText: {
+    color: 'white',
+    fontWeight: '600',
+  },
 });
+

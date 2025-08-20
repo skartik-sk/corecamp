@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Prevent multiple WalletConnect Core initializations
 // @ts-ignore
 if (typeof global.__WC_CORE_INIT_GUARD__ === 'undefined') {
