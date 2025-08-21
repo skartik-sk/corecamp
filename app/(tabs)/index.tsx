@@ -6,677 +6,1110 @@ import {
   TouchableOpacity,
   Dimensions,
   RefreshControl,
+  Platform,
+  Text,
 } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import { useCampNetworkSDK } from '@/hooks/useCampNetworkSDK';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { BlurView } from 'expo-blur';
+import { useAccount } from 'wagmi';
+import { useCampNetworkSDK } from '@/hooks/useCampNetworkSDK';
+import { useCampfireIntegration } from '@/hooks/useCampfireIntegration';
 import { Colors } from '@/constants/Colors';
 import Header from '@/components/ui/Header';
-import Hero from '@/components/ui/Hero';
-import { useAccount } from 'wagmi';
-import { useWalletInfo } from '@reown/appkit-wagmi-react-native';
-import { useCampfireIntegration } from '@/hooks/useCampfireIntegration';
+import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withSpring,
+  withDelay,
+  withRepeat,
+  interpolate,
+  Extrapolate
+} from 'react-native-reanimated';
+import { 
+  Zap, 
+  Shield, 
+  Users, 
+  Flame, 
+  ArrowRight, 
+  Star,
+  TrendingUp
+} from 'lucide-react-native';
 
-                import { Image } from 'react-native';
-                import { ResizeMode, Video } from 'expo-av';
+const { width, height } = Dimensions.get('window');
 
-const { width } = Dimensions.get('window');
+// Data matching web design
+const features = [
+  {
+    name: 'Create & Mint IP',
+    description: 'Upload any content and turn it into a tokenized IP NFT with customizable licensing terms.',
+    icon: Zap,
+    gradient: [Colors['warm-1'], Colors['warm-2']],
+  },
+  {
+    name: 'Secure Trading',
+    description: 'Buy, sell, and negotiate IP rights with built-in escrow protection and smart contracts.',
+    icon: Shield,
+    gradient: [Colors['cool-1'], Colors['cool-2']],
+  },
+  {
+    name: 'Community Driven',
+    description: 'Connect with creators, collaborate on projects, and build the future of IP together.',
+    icon: Users,
+    gradient: [Colors['camp-orange'], Colors['warm-1']],
+  },
+];
+
+const stats = [
+  { name: 'Total IPs Created', value: '2.5K+' },
+  { name: 'Active Creators', value: '850+' },
+  { name: 'Total Volume', value: '$125K+' },
+  { name: 'Successful Trades', value: '3.2K+' },
+];
 
 interface IPAsset {
   id: string;
   title?: string;
-
   createdAt?: string;
-  // Common media URLs (nullable as some records use different fields)
   url?: string;
   animation_url?: string | null;
   external_app_url?: string | null;
   image_url?: string | null;
   media_url?: string | null;
-  // Other flags
   is_unique?: boolean | null;
   media_type?: string | null;
-  // Derived / UI fields
   type?: 'video' | 'music' | 'image' | 'document' | 'design' | string;
   thumbnail?: string;
-
   status?: 'owned' | 'listed' | 'auction' | 'negotiating' | string;
   views?: number;
   offers?: number;
-  // Full metadata payload coming from the origin service
-
-    category?: string;
-    description?: string;
-    image?: string;
-    isDerivative?: boolean;
-    mimeType?: string;
-    owner?: string;
-    parentId?: string;
-    price?: string | number;
-    size?: number;
-    tags?: string[];
-
-
-}
-
-interface Activity {
-  id: string;
-  type: 'created' | 'listed' | 'sold' | 'bid' | 'offer';
-  title: string;
-  timestamp: string;
-  amount?: string;
+  category?: string;
+  description?: string;
+  image?: string;
+  isDerivative?: boolean;
+  mimeType?: string;
+  owner?: string;
+  parentId?: string;
+  price?: string | number;
+  size?: number;
+  tags?: string[];
 }
 
 export default function HomeScreen() {
   const { address } = useAccount();
-
   const { getOriginData } = useCampfireIntegration();
   const campSDK = useCampNetworkSDK();
-  const colorScheme = useColorScheme();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [userAssets, setUserAssets] = useState<IPAsset[]>([]);
-  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
-  const [usageData, setUsageData] = useState<any>(null);
-  const [autoAuthTriggered, setAutoAuthTriggered] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Auto-authenticate with Camp Network when wallet is connected
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-    
-    if (campSDK.shouldAuthenticate && !campSDK.isLoading && !autoAuthTriggered) {
-      console.log('🔄 Auto-authentication triggered - scheduling Camp SDK authentication...');
-      setAutoAuthTriggered(true);
-      
-      timeoutId = setTimeout(() => {
-        console.log('🚀 Executing one-time Camp SDK authentication...');
-        campSDK.authenticate().catch((error: any) => {
-          console.error('❌ Auto-authentication failed:', error);
-          setAutoAuthTriggered(false);
-        });
-      }, 3000);
-    }
+  // Animation values
+  const fadeAnim = useSharedValue(0);
+  const slideUpAnim = useSharedValue(50);
+  const scaleAnim = useSharedValue(0.9);
+  const pulseAnim = useSharedValue(0);
 
-    return () => {
-      if (timeoutId) {
-        console.log('🧹 Clearing auto-authentication timeout');
-        clearTimeout(timeoutId);
+  // Initialize animations
+  useEffect(() => {
+    fadeAnim.value = withTiming(1, { duration: 1000 });
+    slideUpAnim.value = withSpring(0, { damping: 20, stiffness: 100 });
+    scaleAnim.value = withSpring(1, { damping: 20, stiffness: 100 });
+    pulseAnim.value = withRepeat(
+      withTiming(1, { duration: 2000 }),
+      -1,
+      true
+    );
+  }, []);
+
+  // Animated styles
+  const fadeInStyle = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value,
+    transform: [{ translateY: slideUpAnim.value }],
+  }));
+
+  const scaleInStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scaleAnim.value }],
+  }));
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    shadowOpacity: interpolate(
+      pulseAnim.value,
+      [0, 1],
+      [0.3, 0.8],
+      Extrapolate.CLAMP
+    ),
+  }));
+
+  // Fetch user assets
+  useEffect(() => {
+    const fetchAssets = async () => {
+      if (!address) return;
+      
+      try {
+        const res = await getOriginData(address);
+        if (res.length > 0) {
+          const assets = res.map((asset: any) => ({
+            id: asset.id,
+            title: asset.metadata?.name ?? `Asset ${asset.id}`,
+            url: asset.animation_url ?? asset.metadata.image,
+            type: asset.animation_url ? 'video' : 'image',
+            thumbnail: asset.metadata?.image ?? asset.image_url,
+            price: `${asset.metadata?.price ?? 0} CAMP`,
+            owner: asset.owner,
+            status: asset.owner !== address ? 'listed' : 'owned',
+          }));
+          setUserAssets(assets);
+        }
+      } catch (error) {
+        console.error('Failed to fetch assets:', error);
       }
     };
-  }, [campSDK.shouldAuthenticate, autoAuthTriggered]);
 
-  // Reset auto-auth flag when wallet disconnects
-  useEffect(() => {
-    if (!campSDK.shouldAuthenticate && !campSDK.user) {
-      setAutoAuthTriggered(false);
-    }
-  }, [campSDK.shouldAuthenticate, campSDK.user]);
-
-  // Fetch usage data when authenticated with Camp Network
-  useEffect(() => {
-    const fetchUsageData = async () => {
-      console.log('🔍 Fetching Camp usage data...');
-        const res = await getOriginData(address || '');
-        console.log(res)
-        if(res.length>0){
-          const assets = res.map((asset: any) => {
-            const url = asset.animation_url ??  asset.metadata.image;
-            const type = asset.animation_url ? 'video' :  'image';
-
-            const ownerRaw = asset.metadata?.owner ?? asset.owner ?? '';
-            const owner =
-              ownerRaw && ownerRaw.length > 6
-              ? `${ownerRaw.slice(0, 3)}...${ownerRaw.slice(-3)}`
-              : ownerRaw || undefined;
-
-            return {
-              id: asset.id,
-              title: asset.metadata?.name ?? `Asset ${asset.id}`,
-              url,
-              type,
-              thumbnail: asset.metadata?.image ?? asset.image_url,
-              price: `${asset.metadata?.price ?? 0} CAMP`,
-              owner,
-              status: asset.owner != address ? owner : 'owned',
-            };
-          });
-      setUserAssets(assets);
-    } else {
-      setUserAssets([]);
-    }
-  };
-    fetchUsageData();
+    fetchAssets();
   }, [address]);
 
-  // Update user assets when IP assets are loaded
+  // Show onboarding for non-authenticated users
   useEffect(() => {
-    if (campSDK.ipAssets.length > 0) {
-      console.log('📦 Loading IP assets from Camp SDK:', campSDK.ipAssets);
-     
-    } else if (campSDK.isAuthenticated) {
-      setUserAssets([]);
-    }
-  }, [campSDK.ipAssets, campSDK.isAuthenticated]);
-
-  // Show onboarding only if not authenticated
-  useEffect(() => {
-    if (!campSDK.isAuthenticated && !showOnboarding) {
-      setShowOnboarding(true);
-    } else if (campSDK.isAuthenticated && showOnboarding) {
-      setShowOnboarding(false);
-    }
-  }, [campSDK.isAuthenticated, showOnboarding]);
-
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-  };
-
-  // Mock recent activity data
-  useEffect(() => {
-    if (campSDK.isAuthenticated) {
-      setRecentActivity([
-        {
-          id: '1',
-          type: 'bid',
-          title: 'New bid on Mobile App Concept',
-          timestamp: '2 hours ago',
-          amount: '0.25 ETH',
-        },
-        {
-          id: '2',
-          type: 'offer',
-          title: 'Offer received on Product Design',
-          timestamp: '1 day ago',
-          amount: '0.4 ETH',
-        },
-        {
-          id: '3',
-          type: 'listed',
-          title: 'Product Design listed on marketplace',
-          timestamp: '2 days ago',
-        },
-      ]);
-    }
-  }, [campSDK.isAuthenticated]);
+    setShowOnboarding(!campSDK.isAuthenticated && !address);
+  }, [campSDK.isAuthenticated, address]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     try {
       if (campSDK.isAuthenticated) {
-        console.log('🔄 Refreshing Camp SDK data...');
-        const usage = await campSDK.getUsage();
-        if (usage) setUsageData(usage);
         await campSDK.refreshAssets();
       }
     } catch (error) {
-      console.error('❌ Refresh failed:', error);
+      console.error('Refresh failed:', error);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const getStatusColor = (status: IPAsset['status']) => {
-    switch (status) {
-      case 'listed':
-        return Colors.camp.green[500];
-      case 'auction':
-        return Colors.camp.orange[500];
-      case 'negotiating':
-        return Colors.camp.blue[500];
-      default:
-        return Colors[colorScheme ?? 'light'].text;
-    }
+  const handleAuth = () => {
+    (global as any).openAppKit?.();
   };
 
-  const getStatusText = (status: IPAsset['status']) => {
-    switch (status) {
-      case 'listed':
-        return 'Listed';
-      case 'auction':
-        return 'On Auction';
-      case 'negotiating':
-        return 'Negotiating';
-      default:
-        return 'Owned';
-    }
-  };
-  const { walletInfo } = useWalletInfo();
-  if (showOnboarding && !address) {
-    return <OnboardingFlow onComplete={handleOnboardingComplete} />;
+  if (showOnboarding) {
+    return <OnboardingFlow onComplete={() => setShowOnboarding(false)} />;
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView 
+    <View style={styles.container}>
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={[
+          'rgba(249, 246, 242, 0.9)',
+          'rgba(255, 255, 255, 0.8)',
+          'rgba(162, 213, 209, 0.2)'
+        ]}
+        style={styles.backgroundGradient}
+      />
+
+      <ScrollView
         style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-  <Header />
-  <Hero subtitle={address ? 'Welcome back — manage your IP and earnings.' : undefined} />
+        {/* Header */}
+        <Header />
 
-        {/* Quick Actions */}
-        <View style={[styles.quickActions, { justifyContent: 'space-between' }]}>
-          <TouchableOpacity 
-            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
-            onPress={()  => router.push('/create')}
-          >
+        {/* Hero Section */}
+        <Animated.View style={[styles.heroSection, fadeInStyle]}>
+          <Animated.View style={[styles.heroIconContainer, pulseStyle]}>
             <LinearGradient
-              colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
-              style={styles.quickActionGradient}
+              colors={Colors.gradients.primary as any}
+              style={styles.heroIcon}
             >
-              <IconSymbol size={28} name="plus.circle.fill" color="white" />
-              <ThemedText style={styles.quickActionText}>Create IP</ThemedText>
+              <Flame size={40} color="white" />
             </LinearGradient>
-          </TouchableOpacity>
+          </Animated.View>
 
-          <TouchableOpacity 
-            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
-            onPress={() => router.push('/chat')}
-          >
+          <Text style={styles.heroTitle}>
+            Where IP Meets{'\n'}
             <LinearGradient
-              colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
-              style={styles.quickActionGradient}
+              colors={[Colors['camp-orange'], Colors['warm-2'], Colors['warm-1']]}
+              style={styles.gradientText}
             >
-              <IconSymbol size={28} name="message.fill" color="white" />
-              <ThemedText style={styles.quickActionText}>Chat & Trade</ThemedText>
+              <Text style={[styles.heroTitle, styles.gradientTextInner]}>
+                Innovation
+              </Text>
             </LinearGradient>
-          </TouchableOpacity>
+          </Text>
 
-          <TouchableOpacity 
-            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
-            onPress={() => router.push('/marketplace')}
-          >
-            <LinearGradient
-                colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
-              style={styles.quickActionGradient}
-            >
-              <IconSymbol size={28} name="storefront.fill" color="white" />
-              <ThemedText style={styles.quickActionText}>Marketplace</ThemedText>
-            </LinearGradient>
-          </TouchableOpacity>
+          <Text style={styles.heroSubtitle}>
+            The ultimate marketplace for intellectual property. Create, trade, auction, and collaborate on IP assets powered by Camp Network's Origin SDK and blockchain technology.
+          </Text>
 
-          <TouchableOpacity 
-            style={[styles.quickAction, { flexBasis: '48%', marginRight: 0 }]}
-            onPress={() => router.push('/auctions')}
-          >
-            <LinearGradient
-               colors={[Colors.brand['warm-1'], Colors.brand['warm-2']  ]}
-              style={styles.quickActionGradient}
-            >
-              <IconSymbol size={28} name="hammer.fill" color="white" />
-              <ThemedText style={styles.quickActionText}>Auctions</ThemedText>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Your IP Assets */}
-        {userAssets.length > 0 ? 
-          <View style={styles.section}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>Your IP Assets</ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.assetsScroll}>
-              {userAssets.map((asset) => (
-                <TouchableOpacity key={asset.id} style={styles.assetCard} activeOpacity={0.9}>
-                  <View style={styles.cardMediaWrap}>
-                    {asset.type === 'video' ? (
-                      <Video
-                        source={{ uri: asset.url || '' }}
-                        style={styles.assetThumbnail}
-                        useNativeControls
-                        shouldPlay
-                        isMuted
-                        resizeMode={ResizeMode.COVER}
-                        isLooping
-                      />
-                    ) : asset.type === 'music' ? (
-                      <View style={[styles.assetThumbnail, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
-                        <IconSymbol size={28} name="music.note" color={Colors[colorScheme ?? 'light'].text} />
-                        <ThemedText style={{ marginLeft: 8, fontSize: 12, opacity: 0.9 }}>Playing (muted)</ThemedText>
-                      </View>
-                    ) : asset.url ? (
-                      <Image source={{ uri: asset.url }} style={styles.assetThumbnail} resizeMode={ResizeMode.COVER} />
-                    ) : (
-                      <View style={styles.assetThumbnail} />
-                    )}
-
-                    {/* gradient overlay to mimic web design */}
-                    <LinearGradient
-                      colors={["transparent", "rgba(0,0,0,0.35)"]}
-                      style={styles.cardOverlay}
-                    />
-
-                    {/* featured badge */}
-                    {asset.is_unique && (
-                      <View style={styles.featuredBadge}>
-                        <IconSymbol size={14} name="star.fill" color="white" />
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.cardBody}>
-                    <ThemedText style={styles.assetTitle} numberOfLines={2}>
-                      {asset.title}
-                    </ThemedText>
-                    <ThemedText style={styles.assetMeta} numberOfLines={1}>
-                      {asset.owner ? `by ${asset.owner}` : asset.status}
-                    </ThemedText>
-
-                      <ThemedText style={styles.assetPrice}>{asset.price}</ThemedText>
-                    <View style={[styles.cardFooter, { width: '100%', alignItems: 'center' }]}>
-                      <LinearGradient
-                      colors={[Colors.brand['warm-1'], Colors.brand['warm-2']]}
-                      style={[styles.ctaButton, { flex: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }]}
-                      >
-                      <ThemedText style={styles.ctaText}>View</ThemedText>
-                      </LinearGradient>
-                    </View>
-                  </View>
+          <View style={styles.heroActions}>
+            {campSDK.isAuthenticated ? (
+              <>
+                <TouchableOpacity 
+                  style={styles.primaryButton}
+                  onPress={() => router.push('/create')}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={Colors.gradients.primary as any}
+                    style={styles.buttonGradient}
+                  >
+                    <Text style={styles.primaryButtonText}>Create Your First IP</Text>
+                    <ArrowRight size={20} color="white" />
+                  </LinearGradient>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+                <TouchableOpacity 
+                  style={styles.secondaryButton}
+                  onPress={() => router.push('/marketplace')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryButtonText}>Explore Marketplace</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity 
+                  style={styles.primaryButton}
+                  onPress={handleAuth}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={Colors.gradients.primary as any}
+                    style={styles.buttonGradient}
+                  >
+                    <Text style={styles.primaryButtonText}>Connect Wallet to Start</Text>
+                    <ArrowRight size={20} color="white" />
+                  </LinearGradient>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.secondaryButton}
+                  onPress={() => router.push('/marketplace')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryButtonText}>Browse IPs</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-        : (
-          <ThemedText style={styles.emptyStateText}>No IP Assets Found</ThemedText>
-        )}
+        </Animated.View>
 
-            {/* <TouchableOpacity
-              style={styles.addAssetCard}
-              onPress={() => router.push('/create')}
-            >
-              <IconSymbol size={32} name="plus.circle.fill" color={Colors.camp.orange[500]} />
-              <ThemedText style={styles.addAssetText}>Create New IP</ThemedText>
-            </TouchableOpacity> */}
+        {/* Features Section */}
+        <View style={styles.featuresSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Everything You Need for IP Trading</Text>
+            <Text style={styles.sectionSubtitle}>
+              From creation to marketplace, auctions to negotiations - we've got you covered.
+            </Text>
+          </View>
 
-        
+          <View style={styles.featuresGrid}>
+            {features.map((feature, index) => (
+              <Animated.View
+                key={feature.name}
+                style={[
+                  styles.featureCard,
+                  {
+                    opacity: withDelay(
+                      index * 200,
+                      withTiming(1, { duration: 600 })
+                    ),
+                  }
+                ]}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.95}
+                  style={styles.featureCardTouchable}
+                  onPress={() => {
+                    if (feature.name === 'Create & Mint IP') router.push('/create');
+                    else if (feature.name === 'Secure Trading') router.push('/marketplace');
+                    else if (feature.name === 'Community Driven') router.push('/chat');
+                  }}
+                >
+                  <BlurView intensity={80} style={styles.featureBlur}>
+                    <View style={styles.featureContent}>
+                      {/* Feature Header with Icon and Trending Indicator */}
+                      <View style={styles.featureHeader}>
+                        <LinearGradient
+                          colors={feature.gradient as any}
+                          style={styles.featureIcon}
+                        >
+                          <feature.icon size={28} color="white" />
+                        </LinearGradient>
+                        <View style={styles.featureTrendIndicator}>
+                          <TrendingUp size={16} color={Colors.success} />
+                        </View>
+                      </View>
 
-        {/* Recent Activity */}
-        {/* <View style={styles.section}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>Recent Activity</ThemedText>
-          <View style={styles.activityList}>
-            {recentActivity.map((activity) => (
-              <TouchableOpacity key={activity.id} style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                  <IconSymbol 
-                    size={20} 
-                    name={
-                      activity.type === 'bid' ? 'hammer.fill' :
-                      activity.type === 'offer' ? 'hand.raised.fill' :
-                      activity.type === 'sold' ? 'checkmark.circle.fill' :
-                      activity.type === 'listed' ? 'storefront.fill' :
-                      'plus.circle.fill'
-                    }
-                    color={
-                      activity.type === 'bid' ? Colors.camp.orange[500] :
-                      activity.type === 'offer' ? Colors.camp.blue[500] :
-                      activity.type === 'sold' ? Colors.camp.green[500] :
-                      activity.type === 'listed' ? Colors.camp.purple[500] :
-                      Colors.camp.green[500]
-                    }
-                  />
-                </View>
-                <View style={styles.activityContent}>
-                  <ThemedText style={styles.activityTitle}>{activity.title}</ThemedText>
-                  <ThemedText style={styles.activityTime}>{activity.timestamp}</ThemedText>
-                </View>
-                {activity.amount && (
-                  <ThemedText style={styles.activityAmount}>{activity.amount}</ThemedText>
-                )}
-              </TouchableOpacity>
+                      {/* Feature Title and Badge */}
+                      <View style={styles.featureTitleContainer}>
+                        <Text style={styles.featureTitle}>{feature.name}</Text>
+                        <View style={styles.featureBadge}>
+                          <Text style={styles.featureBadgeText}>HOT</Text>
+                        </View>
+                      </View>
+
+                      {/* Feature Description */}
+                      <Text style={styles.featureDescription}>{feature.description}</Text>
+
+                      {/* Feature Stats */}
+                      <View style={styles.featureStats}>
+                        <View style={styles.featureStatItem}>
+                          <Text style={styles.featureStatValue}>
+                            {index === 0 ? '2.5K+' : index === 1 ? '125K+' : '850+'}
+                          </Text>
+                          <Text style={styles.featureStatLabel}>
+                            {index === 0 ? 'Created' : index === 1 ? 'Volume' : 'Users'}
+                          </Text>
+                        </View>
+                        <View style={styles.featureStatDivider} />
+                        <View style={styles.featureStatItem}>
+                          <Text style={styles.featureStatValue}>98%</Text>
+                          <Text style={styles.featureStatLabel}>Success</Text>
+                        </View>
+                      </View>
+
+                      {/* Action Arrow */}
+                      <View style={styles.featureAction}>
+                        <View style={styles.featureActionButton}>
+                          <ArrowRight size={20} color={feature.gradient[0]} />
+                        </View>
+                      </View>
+                    </View>
+                  </BlurView>
+                </TouchableOpacity>
+              </Animated.View>
             ))}
           </View>
-        </View> */}
+        </View>
+
+        {/* Stats Section */}
+        <LinearGradient
+          colors={Colors.gradients.primary as any}
+          style={styles.statsSection}
+        >
+          <View style={styles.statsGrid}>
+            {stats.map((stat, index) => (
+              <Animated.View
+                key={stat.name}
+                style={[
+                  styles.statItem,
+                  {
+                    transform: [
+                      {
+                        scale: withDelay(
+                          index * 100,
+                          withSpring(1, { damping: 15 })
+                        )
+                      }
+                    ]
+                  }
+                ]}
+              >
+                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statName}>{stat.name}</Text>
+              </Animated.View>
+            ))}
+          </View>
+        </LinearGradient>
+
+        {/* Recent Activity Section */}
+        <View style={styles.activitySection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Latest Activity</Text>
+            <Text style={styles.sectionSubtitle}>
+              See what's happening in the CoreCamp community
+            </Text>
+          </View>
+
+          <View style={styles.activityGrid}>
+            {[
+              {
+                id: 1,
+                type: 'listing',
+                title: 'AI Art Collection #001',
+                description: 'A unique collection of AI-generated artwork ready for licensing and collaboration.',
+                price: '125',
+                currency: 'CAMP',
+                trend: '+15%',
+                time: '2 hours ago',
+                category: 'Digital Art',
+                likes: 24,
+                views: 156,
+                image: 'https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=400&h=300&fit=crop',
+              },
+              {
+                id: 2,
+                type: 'sale',
+                title: 'Smart Contract Template',
+                description: 'Production-ready smart contract for DeFi applications with comprehensive documentation.',
+                price: '89',
+                currency: 'CAMP',
+                trend: '+8%',
+                time: '4 hours ago',
+                category: 'Code',
+                likes: 18,
+                views: 89,
+                image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=300&fit=crop',
+              },
+              {
+                id: 3,
+                type: 'auction',
+                title: 'Music Producer Pack',
+                description: 'Professional music samples and loops from award-winning producers.',
+                price: '67',
+                currency: 'CAMP',
+                trend: '+22%',
+                time: '6 hours ago',
+                category: 'Music',
+                likes: 32,
+                views: 203,
+                image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop',
+              }
+            ].map((item, index) => (
+              <Animated.View
+                key={item.id}
+                style={[
+                  styles.activityCard,
+                  {
+                    opacity: withDelay(
+                      index * 150,
+                      withTiming(1, { duration: 600 })
+                    ),
+                  }
+                ]}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.95}
+                  style={styles.activityCardTouchable}
+                  onPress={() => router.push('/marketplace')}
+                >
+                  <BlurView intensity={80} style={styles.activityBlur}>
+                    <View style={styles.activityContent}>
+                      {/* Activity Media */}
+                      <View style={styles.activityMediaContainer}>
+                        <View style={styles.activityImageContainer}>
+                          <LinearGradient
+                            colors={[Colors['cool-1'], Colors['camp-orange']]}
+                            style={styles.activityImagePlaceholder}
+                          >
+                            <Star size={24} color="white" />
+                          </LinearGradient>
+                          <View style={styles.activityTypeIndicator}>
+                            <Text style={styles.activityTypeText}>
+                              {item.type.toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.activityCategoryBadge}>
+                          <Text style={styles.activityCategoryText}>{item.category}</Text>
+                        </View>
+                      </View>
+
+                      {/* Activity Header */}
+                      <View style={styles.activityHeader}>
+                        <View style={styles.activityHeaderLeft}>
+                          <Text style={styles.activityTitle}>{item.title}</Text>
+                          <Text style={styles.activityTime}>{item.time}</Text>
+                        </View>
+                        <View style={styles.activityTrend}>
+                          <TrendingUp size={16} color={Colors.success} />
+                          <Text style={styles.activityTrendText}>{item.trend}</Text>
+                        </View>
+                      </View>
+
+                      {/* Activity Description */}
+                      <Text style={styles.activityDescription}>{item.description}</Text>
+
+                      {/* Activity Stats */}
+                      <View style={styles.activityStatsContainer}>
+                        <View style={styles.activityStatsRow}>
+                          <View style={styles.activityStatItem}>
+                            <Text style={styles.activityStatValue}>{item.likes}</Text>
+                            <Text style={styles.activityStatLabel}>Likes</Text>
+                          </View>
+                          <View style={styles.activityStatDivider} />
+                          <View style={styles.activityStatItem}>
+                            <Text style={styles.activityStatValue}>{item.views}</Text>
+                            <Text style={styles.activityStatLabel}>Views</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Activity Footer */}
+                      <View style={styles.activityFooter}>
+                        <View style={styles.activityPriceContainer}>
+                          <Text style={styles.activityPrice}>{item.price} {item.currency}</Text>
+                          <Text style={styles.activityPriceLabel}>Current Price</Text>
+                        </View>
+                        <View style={styles.activityActionButton}>
+                          <ArrowRight size={20} color={Colors['camp-orange']} />
+                        </View>
+                      </View>
+                    </View>
+                  </BlurView>
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+        </View>
+
+        {/* CTA Section */}
+        {!campSDK.isAuthenticated && (
+          <LinearGradient
+            colors={[Colors['cool-1'], Colors['camp-dark']]}
+            style={styles.ctaSection}
+          >
+            <Text style={styles.ctaTitle}>Ready to Start Your IP Journey?</Text>
+            <Text style={styles.ctaSubtitle}>
+              Join thousands of creators building the future of intellectual property on the blockchain.
+            </Text>
+            <TouchableOpacity 
+              style={styles.ctaButton}
+              onPress={handleAuth}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.ctaButtonText}>Connect Wallet to Begin</Text>
+              <ArrowRight size={20} color={Colors['cool-1']} />
+            </TouchableOpacity>
+          </LinearGradient>
+        )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: 'white',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   scrollView: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  addressText: {
-    opacity: 0.6,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  
+  // Hero Section
+  heroSection: {
     paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  quickAction: {
-    width: (width - 60) / 2,
-    marginRight: 20,
-    marginBottom: 16,
-  },
-  quickActionGradient: {
-    borderRadius: 12,
-    padding: 16,
+    paddingVertical: 60,
     alignItems: 'center',
-    minHeight: 80,
-    justifyContent: 'center',
   },
-  quickActionText: {
-    color: 'white',
-    fontWeight: '600',
-    marginTop: 8,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  section: {
-    paddingHorizontal: 20,
+  heroIconContainer: {
     marginBottom: 32,
+    shadowColor: Colors['camp-orange'],
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 20,
+    elevation: 10,
   },
-  sectionTitle: {
-    marginBottom: 16,
-  },
-  assetsScroll: {
-    
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  assetCard: {
-    width: 160,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
-    
-    marginRight: 12,
-  },
-  assetThumbnail: {
+  heroIcon: {
+    width: 80,
     height: 80,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  assetTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-    minHeight: 36,
-  },
-  assetPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  assetStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statusBadge: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    opacity: 0.8,
-  },
-  assetStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  assetStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  assetStatText: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  addAssetCard: {
-    width: 160,
-    height: 180,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.camp.orange[500] + '50',
-  },
-  addAssetText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: Colors.camp.orange[500],
-  },
-  activityList: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-  },
-  activityIcon: {
-    width: 40,
-    height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
   },
-  activityContent: {
-    flex: 1,
+  heroTitle: {
+    fontSize: Platform.OS === 'ios' ? 36 : 32,
+    fontWeight: '800',
+    color: Colors['camp-dark'],
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: Platform.OS === 'ios' ? 44 : 40,
+    fontFamily: 'Inter_800ExtraBold',
   },
-  activityTitle: {
-    fontSize: 14,
+  gradientText: {
+    borderRadius: 8,
+  },
+  gradientTextInner: {
+    color: 'transparent',
+  },
+  heroSubtitle: {
+    fontSize: 18,
+    color: Colors['cool-1'],
+    textAlign: 'center',
+    lineHeight: 28,
+    marginBottom: 40,
+    maxWidth: width * 0.9,
+    fontFamily: 'Inter_400Regular',
+  },
+  heroActions: {
+    width: '100%',
+    gap: 16,
+  },
+  primaryButton: {
+    width: '100%',
+    shadowColor: Colors['camp-orange'],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 8,
+  },
+  primaryButtonText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 2,
+    fontFamily: 'Inter_600SemiBold',
   },
-  activityTime: {
-    fontSize: 12,
-    opacity: 0.6,
+  secondaryButton: {
+    width: '100%',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors['cool-1'],
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  activityAmount: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: Colors.camp.green[500],
+  secondaryButtonText: {
+    color: Colors['cool-1'],
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
 
-  emptyStateText: {
-    fontSize: 14,
-    color: Colors.brand['cool-1'],
+  // Features Section
+  featuresSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  sectionHeader: {
+    alignItems: 'center',
+    marginBottom: 48,
+  },
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: Colors['camp-dark'],
     textAlign: 'center',
-    marginTop: 16,
+    marginBottom: 16,
+    fontFamily: 'Inter_700Bold',
   },
-  // Card updates to match web IPCard
-  cardMediaWrap: {
-    width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
+  sectionSubtitle: {
+    fontSize: 16,
+    color: Colors['cool-1'],
+    textAlign: 'center',
+    lineHeight: 24,
+    maxWidth: width * 0.8,
+    fontFamily: 'Inter_400Regular',
+  },
+  featuresGrid: {
+    gap: 24,
+  },
+  featureCard: {
     marginBottom: 8,
-    backgroundColor: 'rgba(0,0,0,0.03)',
   },
-  cardOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 48,
+  featureCardTouchable: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: Colors['camp-orange'],
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  featuredBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: Colors.brand['warm-1'],
+  featureBlur: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  featureContent: {
+    padding: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    position: 'relative',
+  },
+  featureHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  featureIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  cardBody: {
-    padding: 12,
-
-  },
-  assetMeta: {
-    fontSize: 12,
-    color: Colors.brand['cool-1'],
-    marginBottom: 8,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  ctaButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    minWidth: 72,
+  featureTrendIndicator: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 12,
+    padding: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ctaText: {
+  featureTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  featureBadge: {
+    backgroundColor: Colors['camp-orange'],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  featureBadgeText: {
     color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
+  },
+  featureStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(162, 213, 209, 0.2)',
+  },
+  featureStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  featureStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors['camp-dark'],
+    marginBottom: 4,
+    fontFamily: 'Inter_700Bold',
+  },
+  featureStatLabel: {
+    fontSize: 12,
+    color: Colors['cool-1'],
+    fontFamily: 'Inter_400Regular',
+  },
+  featureStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(162, 213, 209, 0.3)',
+    marginHorizontal: 16,
+  },
+  featureAction: {
+    alignItems: 'flex-end',
+  },
+  featureActionButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(162, 213, 209, 0.2)',
+  },
+  featureTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors['camp-dark'],
+    marginBottom: 0,
+    fontFamily: 'Inter_700Bold',
+    flex: 1,
+  },
+  featureDescription: {
+    fontSize: 15,
+    color: Colors['cool-1'],
+    lineHeight: 24,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'left',
+  },
+
+  // Stats Section
+  statsSection: {
+    paddingVertical: 48,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+  },
+  statItem: {
+    alignItems: 'center',
+    width: '50%',
+    marginBottom: 32,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 8,
+    fontFamily: 'Inter_700Bold',
+  },
+  statName: {
+    fontSize: 14,
+    color: 'rgba(255, 180, 0, 0.8)',
+    textAlign: 'center',
+    fontFamily: 'Inter_400Regular',
+  },
+
+  // Activity Section
+  activitySection: {
+    paddingHorizontal: 20,
+    paddingVertical: 80,
+  },
+  activityGrid: {
+    gap: 24,
+  },
+  activityCard: {
+    marginBottom: 8,
+  },
+  activityCardTouchable: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: Colors['camp-orange'],
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  activityBlur: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  activityContent: {
+    padding: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  activityMediaContainer: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  activityImageContainer: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  activityImagePlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  activityTypeIndicator: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors['camp-orange'],
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  activityTypeText: {
+    color: 'white',
+    fontSize: 8,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
+  },
+  activityCategoryBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: 'rgba(162, 213, 209, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(162, 213, 209, 0.3)',
+  },
+  activityCategoryText: {
+    color: Colors['cool-1'],
+    fontSize: 12,
     fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  activityHeaderLeft: {
+    flex: 1,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: Colors['cool-1'],
+    fontFamily: 'Inter_400Regular',
+    marginTop: 4,
+  },
+  activityTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors['camp-dark'],
+    marginBottom: 0,
+    fontFamily: 'Inter_700Bold',
+    lineHeight: 24,
+  },
+  activityDescription: {
+    fontSize: 14,
+    color: Colors['cool-1'],
+    lineHeight: 22,
+    marginBottom: 20,
+    fontFamily: 'Inter_400Regular',
+  },
+  activityStatsContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(162, 213, 209, 0.2)',
+  },
+  activityStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activityStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  activityStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors['camp-dark'],
+    marginBottom: 4,
+    fontFamily: 'Inter_700Bold',
+  },
+  activityStatLabel: {
+    fontSize: 11,
+    color: Colors['cool-1'],
+    fontFamily: 'Inter_400Regular',
+  },
+  activityStatDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: 'rgba(162, 213, 209, 0.3)',
+    marginHorizontal: 16,
+  },
+  activityFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  activityPriceContainer: {
+    flex: 1,
+  },
+  activityPrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors['camp-orange'],
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 4,
+  },
+  activityPriceLabel: {
+    fontSize: 11,
+    color: Colors['cool-1'],
+    fontFamily: 'Inter_400Regular',
+  },
+  activityTrend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  activityTrendText: {
+    fontSize: 12,
+    color: Colors.success,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  activityActionButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(162, 213, 209, 0.2)',
+    marginLeft: 16,
+  },
+
+  // CTA Section
+  ctaSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 64,
+    alignItems: 'center',
+  },
+  ctaTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontFamily: 'Inter_700Bold',
+  },
+  ctaSubtitle: {
+    fontSize: 16,
+    color: Colors['cool-3'],
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+    maxWidth: width * 0.8,
+    fontFamily: 'Inter_400Regular',
+  },
+  ctaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  ctaButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors['cool-1'],
+    fontFamily: 'Inter_600SemiBold',
   },
 });
 

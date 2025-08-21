@@ -12,7 +12,7 @@ import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import {  useCampAuth } from '@/hooks/useCampAuth';
-import { useFonts } from 'expo-font';
+import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, Inter_900Black } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
@@ -41,61 +41,60 @@ const apollo = new ApolloClient({
 });
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
 
-  // Only load the fonts that exist in this repo to avoid bundling failures.
-  // The repo contains SpaceMono; Inter TTFs are optional and may not be checked in.
+  // Load Inter fonts and SpaceMono as fallback
   const [loaded] = useFonts({
+    Inter_300Light,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    Inter_900Black,
     'SpaceMono-Regular': require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
   // Initialize AppKit on component mount
   useEffect(() => {
     initializeCampAppKit();
+    
+    // Expose global AppKit helper
+    (global as any).openAppKit = () => {
+      try {
+        const { open } = require('@reown/appkit-wagmi-react-native');
+        open?.();
+      } catch (e) {
+        console.log('AppKit not available for opening');
+      }
+    };
   }, []);
 
-  // Defensive AppKit wrapper: try to require the native AppKit component and
-  // expose an `openAppKit` helper on global so UI components can open wallet UI.
-
-
   if (!loaded) {
-    // Async font loading only occurs in development.
     return null;
   }
-// const {authenticated} = useCampAuth();
-
-
 
   return (
-    <ThemeProvider value={ DarkTheme }>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          {/* AppKit provider is exposed as a default AppKit component in some builds */}
-            {/* <ApolloProvider client={apollo}> */}
-           
-                <Stack 
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: '#F8FAFC' }
-                  }}
-                >
-                  <Stack>
-
-                  <Stack.Screen  name="(tabs)" options={{ headerShown: false }} />
-                  </Stack>
-                  <Stack.Screen 
-                    name="sign-in" 
-                    options={{ 
-                      headerShown: false,
-                      presentation: 'modal'
-                    }} 
-                  />
-                    <Stack.Screen name="+not-found" />
-                </Stack>
-
-                <AppKit/>
-
-            {/* </ApolloProvider> */}
-          
+          <Stack 
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: '#FFFFFF' }
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="sign-in" 
+              options={{ 
+                headerShown: false,
+                presentation: 'modal'
+              }} 
+            />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <AppKit/>
           <StatusBar style="auto" />
         </QueryClientProvider>
       </WagmiProvider>
